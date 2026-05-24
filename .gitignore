@@ -1,0 +1,13 @@
+rlhf-env/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+sft-model/
+reward-model/
+ppo-model/
+*.pt
+*.bin
+*.safetensors
+wandb/
+.env
