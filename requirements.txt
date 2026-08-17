@@ -1,0 +1,11 @@
+# Core model and training stack (pinned to the current project environment)
+torch==2.12.0
+transformers==5.8.1
+datasets==4.8.5
+accelerate==1.13.0
+peft==0.19.1
+trl==1.4.0
+
+# Hugging Face model loading and serialization
+huggingface_hub==1.14.0
+safetensors==0.7.0
