@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 from datasets import load_dataset
@@ -9,7 +11,9 @@ from typing import Any, Dict, List
 # ── Config ──────────────────────────────────────────────
 SFT_MODEL_DIR = "./sft-model"       # trained in stage 1
 MODEL_NAME    = "HuggingFaceTB/SmolLM2-1.7B"  # fallback if SFT model missing
-DEVICE        = "mps"
+# Match Stage 1's safe runtime-device selection.  MPS may be built into
+# PyTorch without being available on the current machine.
+DEVICE        = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
 OUTPUT_DIR    = "./reward-model"
 NUM_EXAMPLES  = 1000
 MAX_LENGTH    = 256
@@ -18,8 +22,28 @@ MAX_LENGTH    = 256
 # ── Load tokenizer and base model ───────────────────────
 # We initialise a sequence-classification head (single scalar output = reward score).
 # num_labels=1 gives one logit per sequence — that logit IS the reward.
-import os
-base = SFT_MODEL_DIR if os.path.isdir(SFT_MODEL_DIR) else MODEL_NAME
+def has_checkpoint(path: str) -> bool:
+    """Return whether a local path contains a loadable HF model or PEFT adapter."""
+    if not os.path.isdir(path):
+        return False
+
+    files = set(os.listdir(path))
+    has_adapter = "adapter_config.json" in files and bool(
+        {"adapter_model.safetensors", "adapter_model.bin"} & files
+    )
+    has_model = "config.json" in files and bool(
+        {
+            "model.safetensors",
+            "pytorch_model.bin",
+            "model.safetensors.index.json",
+            "pytorch_model.bin.index.json",
+        }
+        & files
+    )
+    return has_adapter or has_model
+
+
+base = SFT_MODEL_DIR if has_checkpoint(SFT_MODEL_DIR) else MODEL_NAME
 print(f"Loading reward model base from: {base}")
 
 tokenizer = AutoTokenizer.from_pretrained(base)
@@ -30,9 +54,9 @@ model = AutoModelForSequenceClassification.from_pretrained(
     base,
     num_labels=1,
     torch_dtype=torch.float32,   # float32 for stable classification head training
-    device_map={"": DEVICE},
     ignore_mismatched_sizes=True,
 )
+model.to(DEVICE)
 model.config.pad_token_id = tokenizer.pad_token_id
 
 # LoRA on the backbone — keeps the classification head fully trainable

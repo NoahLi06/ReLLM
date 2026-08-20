@@ -37,10 +37,23 @@ SEED = 42
 
 def has_checkpoint(path: str) -> bool:
     """Return whether *path* contains a Hugging Face model or PEFT adapter."""
-    return os.path.isdir(path) and any(
-        os.path.isfile(os.path.join(path, filename))
-        for filename in ("config.json", "adapter_config.json")
+    if not os.path.isdir(path):
+        return False
+
+    files = set(os.listdir(path))
+    has_adapter = "adapter_config.json" in files and bool(
+        {"adapter_model.safetensors", "adapter_model.bin"} & files
     )
+    has_model = "config.json" in files and bool(
+        {
+            "model.safetensors",
+            "pytorch_model.bin",
+            "model.safetensors.index.json",
+            "pytorch_model.bin.index.json",
+        }
+        & files
+    )
+    return has_adapter or has_model
 
 
 def checkpoint_or_base(path: str, fallback: str) -> str:

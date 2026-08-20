@@ -6,7 +6,11 @@ from trl import SFTTrainer, SFTConfig
 
 # ── Config ──────────────────────────────────────────────
 MODEL_NAME = "HuggingFaceTB/SmolLM2-1.7B"
-DEVICE = "mps"
+# MPS support can be compiled into PyTorch but unavailable at runtime (for
+# example on a non-Apple worker).  Select a usable accelerator instead of
+# failing during model loading.
+DEVICE = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
+MODEL_DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
 OUTPUT_DIR = "./sft-model"
 NUM_EXAMPLES = 1000
 MAX_LENGTH = 256
@@ -18,9 +22,9 @@ tokenizer.pad_token = tokenizer.eos_token
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
-    dtype=torch.float16,
-    device_map={"": DEVICE},
+    dtype=MODEL_DTYPE,
 )
+model.to(DEVICE)
 print(f"Model loaded on {DEVICE}")
 
 # LoRA: train only a small fraction of parameters
